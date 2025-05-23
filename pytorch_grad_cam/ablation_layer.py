@@ -64,8 +64,9 @@ class AblationLayer(torch.nn.Module):
         """ This creates the next batch of activations from the layer.
             Just take corresponding batch member from activations, and repeat it num_channels_to_ablate times.
         """
-        self.activations = activations[input_batch_index, :, :, :].clone(
-        ).unsqueeze(0).repeat(num_channels_to_ablate, 1, 1, 1)
+        selected = activations[input_batch_index].clone().unsqueeze(0)
+        repeat_params = [num_channels_to_ablate] + [1] * (selected.dim() - 1)
+        self.activations = selected.repeat(*repeat_params)
 
     def __call__(self, x):
         output = self.activations
@@ -76,11 +77,10 @@ class AblationLayer(torch.nn.Module):
             # If the values can be negative, we use very negative values
             # to perform the ablation, deviating from the paper.
             if torch.min(output) == 0:
-                output[i, self.indices[i], :] = 0
+                output[i, self.indices[i]] = 0
             else:
                 ABLATION_VALUE = 1e7
-                output[i, self.indices[i], :] = torch.min(
-                    output) - ABLATION_VALUE
+                output[i, self.indices[i]] = torch.min(output) - ABLATION_VALUE
 
         return output
 
@@ -100,11 +100,10 @@ class AblationLayerVit(AblationLayer):
             # If the values can be negative, we use very negative values
             # to perform the ablation, deviating from the paper.
             if torch.min(output) == 0:
-                output[i, self.indices[i], :] = 0
+                output[i, self.indices[i]] = 0
             else:
                 ABLATION_VALUE = 1e7
-                output[i, self.indices[i], :] = torch.min(
-                    output) - ABLATION_VALUE
+                output[i, self.indices[i]] = torch.min(output) - ABLATION_VALUE
 
         output = output.transpose(len(output.shape) - 1, 1)
 
@@ -118,10 +117,10 @@ class AblationLayerVit(AblationLayer):
         """ This creates the next batch of activations from the layer.
             Just take corresponding batch member from activations, and repeat it num_channels_to_ablate times.
         """
-        repeat_params = [num_channels_to_ablate] + \
-            len(activations.shape[:-1]) * [1]
-        self.activations = activations[input_batch_index, :, :].clone(
-        ).unsqueeze(0).repeat(*repeat_params)
+        repeat_params = [num_channels_to_ablate] + [1] * len(activations.shape[:-1])
+        self.activations = (
+            activations[input_batch_index].clone().unsqueeze(0).repeat(*repeat_params)
+        )
 
 
 class AblationLayerFasterRCNN(AblationLayer):

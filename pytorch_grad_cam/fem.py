@@ -24,15 +24,16 @@ class FEM(BaseCAM):
                       eigen_smooth):
         
         
-        # 2D image
-        if len(activations.shape) == 4:
+        if len(activations.shape) == 3:
+            axis = (2,)
+        elif len(activations.shape) == 4:
             axis = (2, 3)
-        # 3D image
         elif len(activations.shape) == 5:
             axis = (2, 3, 4)
         else:
-            raise ValueError("Invalid activations shape." 
-                             "Shape of activations should be 4 (2D image) or 5 (3D image).")
+            raise ValueError(
+                "Invalid activations shape."
+                "Shape of activations should be 3 (1D), 4 (2D) or 5 (3D) images.")
         means = np.mean(activations, axis=axis)
         stds = np.std(activations, axis=axis)
         # k sigma rule:
