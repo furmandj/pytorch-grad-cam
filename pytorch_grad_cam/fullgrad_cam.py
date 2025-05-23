@@ -63,7 +63,7 @@ class FullGrad(BaseCAM):
         # Loop over the saliency image from every layer
         assert(len(self.bias_data) == len(grads_list))
         for bias, grads in zip(self.bias_data, grads_list):
-            bias = bias[None, :, None, None]
+            bias = bias.reshape((1, bias.shape[0]) + (1,) * (grads.ndim - 2))
             # In the paper they take the absolute value,
             # but possibily taking only the positive gradients will work
             # better.
@@ -76,8 +76,9 @@ class FullGrad(BaseCAM):
         if eigen_smooth:
             # Resize to a smaller image, since this method typically has a very large number of channels,
             # and then consumes a lot of memory
+            smooth_size = tuple(max(1, t // 8) for t in target_size)
             cam_per_target_layer = scale_accross_batch_and_channels(
-                cam_per_target_layer, (target_size[0] // 8, target_size[1] // 8))
+                cam_per_target_layer, smooth_size)
             cam_per_target_layer = get_2d_projection(cam_per_target_layer)
             cam_per_target_layer = cam_per_target_layer[:, None, :, :]
             cam_per_target_layer = scale_accross_batch_and_channels(

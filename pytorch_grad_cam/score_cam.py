@@ -21,23 +21,31 @@ class ScoreCAM(BaseCAM):
                         activations,
                         grads):
         with torch.no_grad():
-            upsample = torch.nn.UpsamplingBilinear2d(
-                size=input_tensor.shape[-2:])
-            activation_tensor = torch.from_numpy(activations)
-            activation_tensor = activation_tensor.to(self.device)
+            dims = len(input_tensor.shape) - 2
+            mode = {1: "linear", 2: "bilinear", 3: "trilinear"}[dims]
+            activation_tensor = torch.from_numpy(activations).to(self.device)
+            upsampled = torch.nn.functional.interpolate(
+                activation_tensor,
+                size=input_tensor.shape[2:],
+                mode=mode,
+                align_corners=False,
+            )
 
-            upsampled = upsample(activation_tensor)
+            maxs = upsampled.view(upsampled.size(0), upsampled.size(1), -1).max(dim=-1)[0]
+            mins = upsampled.view(upsampled.size(0), upsampled.size(1), -1).min(dim=-1)[0]
 
-            maxs = upsampled.view(upsampled.size(0),
-                                  upsampled.size(1), -1).max(dim=-1)[0]
-            mins = upsampled.view(upsampled.size(0),
-                                  upsampled.size(1), -1).min(dim=-1)[0]
-
-            maxs, mins = maxs[:, :, None, None], mins[:, :, None, None]
+            expand_dims = [None] * dims
+            maxs, mins = maxs[(slice(None), slice(None)) + tuple(expand_dims)], mins[(slice(None), slice(None)) + tuple(expand_dims)]
             upsampled = (upsampled - mins) / (maxs - mins + 1e-8)
 
-            input_tensors = input_tensor[:, None,
-                                         :, :] * upsampled[:, :, None, :, :]
+            if dims == 1:
+                input_tensors = input_tensor[:, None, :] * upsampled[:, :, None, :]
+            elif dims == 2:
+                input_tensors = input_tensor[:, None, :, :] * upsampled[:, :, None, :, :]
+            else:
+                input_tensors = (
+                    input_tensor[:, None, :, :, :] * upsampled[:, :, None, :, :, :]
+                )
 
             if hasattr(self, "batch_size"):
                 BATCH_SIZE = self.batch_size
