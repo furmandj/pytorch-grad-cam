@@ -22,3 +22,4 @@ import pytorch_grad_cam.utils.model_targets
 import pytorch_grad_cam.utils.reshape_transforms
 import pytorch_grad_cam.metrics.cam_mult_image
 import pytorch_grad_cam.metrics.road
+from pytorch_grad_cam.model_visualizer import ModelVisualizer
