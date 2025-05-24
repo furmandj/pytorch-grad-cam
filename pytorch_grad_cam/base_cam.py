@@ -75,14 +75,18 @@ class BaseCAM:
         weights = self.get_cam_weights(input_tensor, target_layer, targets, activations, grads)
         if isinstance(activations, torch.Tensor):
             activations = activations.cpu().detach().numpy()
+        # 1D conv
+        if len(activations.shape) == 3:
+            weighted_activations = weights[:, :, None] * activations
         # 2D conv
-        if len(activations.shape) == 4:
+        elif len(activations.shape) == 4:
             weighted_activations = weights[:, :, None, None] * activations
         # 3D conv
         elif len(activations.shape) == 5:
             weighted_activations = weights[:, :, None, None, None] * activations
         else:
-            raise ValueError(f"Invalid activation shape. Get {len(activations.shape)}.")
+            raise ValueError(
+                f"Invalid activation shape. Get {len(activations.shape)}.")
 
         if eigen_smooth:
             cam = get_2d_projection(weighted_activations)
@@ -129,15 +133,23 @@ class BaseCAM:
         cam_per_layer = self.compute_cam_per_layer(input_tensor, targets, eigen_smooth)
         return self.aggregate_multi_layers(cam_per_layer)
 
-    def get_target_width_height(self, input_tensor: torch.Tensor) -> Tuple[int, int]:
-        if len(input_tensor.shape) == 4:
+    def get_target_width_height(self, input_tensor: torch.Tensor) -> Tuple[int, ...]:
+        if len(input_tensor.shape) == 3:
+            length = input_tensor.size(-1)
+            return (length,)
+        elif len(input_tensor.shape) == 4:
             width, height = input_tensor.size(-1), input_tensor.size(-2)
             return width, height
         elif len(input_tensor.shape) == 5:
-            depth, width, height = input_tensor.size(-1), input_tensor.size(-2), input_tensor.size(-3)
+            depth, width, height = (
+                input_tensor.size(-1),
+                input_tensor.size(-2),
+                input_tensor.size(-3),
+            )
             return depth, width, height
         else:
-            raise ValueError("Invalid input_tensor shape. Only 2D or 3D images are supported.")
+            raise ValueError(
+                "Invalid input_tensor shape. Only 1D, 2D or 3D images are supported.")
 
     def compute_cam_per_layer(
         self, input_tensor: torch.Tensor, targets: List[torch.nn.Module], eigen_smooth: bool

@@ -21,23 +21,27 @@ class ScoreCAM(BaseCAM):
                         activations,
                         grads):
         with torch.no_grad():
-            upsample = torch.nn.UpsamplingBilinear2d(
-                size=input_tensor.shape[-2:])
-            activation_tensor = torch.from_numpy(activations)
-            activation_tensor = activation_tensor.to(self.device)
-
-            upsampled = upsample(activation_tensor)
-
-            maxs = upsampled.view(upsampled.size(0),
-                                  upsampled.size(1), -1).max(dim=-1)[0]
-            mins = upsampled.view(upsampled.size(0),
-                                  upsampled.size(1), -1).min(dim=-1)[0]
-
-            maxs, mins = maxs[:, :, None, None], mins[:, :, None, None]
-            upsampled = (upsampled - mins) / (maxs - mins + 1e-8)
-
-            input_tensors = input_tensor[:, None,
-                                         :, :] * upsampled[:, :, None, :, :]
+            activation_tensor = torch.from_numpy(activations).to(self.device)
+            if activation_tensor.ndim == 3:
+                upsampled = torch.nn.functional.interpolate(
+                    activation_tensor,
+                    size=input_tensor.shape[-1],
+                    mode="linear",
+                    align_corners=False,
+                )
+                maxs = upsampled.view(upsampled.size(0), upsampled.size(1), -1).max(dim=-1)[0]
+                mins = upsampled.view(upsampled.size(0), upsampled.size(1), -1).min(dim=-1)[0]
+                maxs, mins = maxs[:, :, None], mins[:, :, None]
+                upsampled = (upsampled - mins) / (maxs - mins + 1e-8)
+                input_tensors = input_tensor[:, None, :, :] * upsampled[:, :, None, :]
+            else:
+                upsample = torch.nn.UpsamplingBilinear2d(size=input_tensor.shape[-2:])
+                upsampled = upsample(activation_tensor)
+                maxs = upsampled.view(upsampled.size(0), upsampled.size(1), -1).max(dim=-1)[0]
+                mins = upsampled.view(upsampled.size(0), upsampled.size(1), -1).min(dim=-1)[0]
+                maxs, mins = maxs[:, :, None, None], mins[:, :, None, None]
+                upsampled = (upsampled - mins) / (maxs - mins + 1e-8)
+                input_tensors = input_tensor[:, None, :, :] * upsampled[:, :, None, :, :]
 
             if hasattr(self, "batch_size"):
                 BATCH_SIZE = self.batch_size
