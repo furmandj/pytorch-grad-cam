@@ -16,8 +16,13 @@ class FullGrad(BaseCAM):
                 "Warning: target_layers is ignored in FullGrad. All bias layers will be used instead")
 
         def layer_with_2D_bias(layer):
-            bias_target_layers = [torch.nn.Conv2d, torch.nn.BatchNorm2d]
-            if type(layer) in bias_target_layers and layer.bias is not None:
+            bias_target_layers = [
+                torch.nn.Conv1d,
+                torch.nn.Conv2d,
+                torch.nn.BatchNorm1d,
+                torch.nn.BatchNorm2d,
+            ]
+            if type(layer) in bias_target_layers and getattr(layer, "bias", None) is not None:
                 return True
             return False
         target_layers = find_layer_predicate_recursive(
@@ -63,7 +68,7 @@ class FullGrad(BaseCAM):
         # Loop over the saliency image from every layer
         assert(len(self.bias_data) == len(grads_list))
         for bias, grads in zip(self.bias_data, grads_list):
-            bias = bias[None, :, None, None]
+            bias = bias.reshape([1, -1] + [1] * (grads.ndim - 2))
             # In the paper they take the absolute value,
             # but possibily taking only the positive gradients will work
             # better.
@@ -76,8 +81,13 @@ class FullGrad(BaseCAM):
         if eigen_smooth:
             # Resize to a smaller image, since this method typically has a very large number of channels,
             # and then consumes a lot of memory
+            if isinstance(target_size, (tuple, list)) and len(target_size) > 1:
+                small_size = (target_size[0] // 8, target_size[1] // 8)
+            else:
+                size = target_size[0] if isinstance(target_size, (tuple, list)) else target_size
+                small_size = size // 8
             cam_per_target_layer = scale_accross_batch_and_channels(
-                cam_per_target_layer, (target_size[0] // 8, target_size[1] // 8))
+                cam_per_target_layer, small_size)
             cam_per_target_layer = get_2d_projection(cam_per_target_layer)
             cam_per_target_layer = cam_per_target_layer[:, None, :, :]
             cam_per_target_layer = scale_accross_batch_and_channels(

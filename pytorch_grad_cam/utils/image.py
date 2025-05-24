@@ -166,10 +166,15 @@ def scale_cam_image(cam, target_size=None):
         img = img / (1e-7 + np.max(img))
         if target_size is not None:
             if len(img.shape) > 2:
-                img = zoom(np.float32(img), [
-                           (t_s / i_s) for i_s, t_s in zip(img.shape, target_size[::-1])])
-            else:
+                img = zoom(
+                    np.float32(img),
+                    [(t_s / i_s) for i_s, t_s in zip(img.shape, target_size[::-1])],
+                )
+            elif len(img.shape) == 2:
                 img = cv2.resize(np.float32(img), target_size)
+            else:
+                size = target_size[0] if isinstance(target_size, (tuple, list)) else target_size
+                img = cv2.resize(np.float32(img)[None, :], (size, 1))[0]
 
         result.append(img)
     result = np.float32(result)
@@ -179,12 +184,11 @@ def scale_cam_image(cam, target_size=None):
 
 def scale_accross_batch_and_channels(tensor, target_size):
     batch_size, channel_size = tensor.shape[:2]
-    reshaped_tensor = tensor.reshape(
-        batch_size * channel_size, *tensor.shape[2:])
+    reshaped_tensor = tensor.reshape(batch_size * channel_size, *tensor.shape[2:])
     result = scale_cam_image(reshaped_tensor, target_size)
-    result = result.reshape(
-        batch_size,
-        channel_size,
-        target_size[1],
-        target_size[0])
+    if isinstance(target_size, (tuple, list)) and len(target_size) > 1:
+        result = result.reshape(batch_size, channel_size, target_size[1], target_size[0])
+    else:
+        size = target_size[0] if isinstance(target_size, (tuple, list)) else target_size
+        result = result.reshape(batch_size, channel_size, size)
     return result
